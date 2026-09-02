@@ -21,9 +21,9 @@ from inspect_ai.solver import TaskState, generate
 
 VLLM_CONFIG = SimpleNamespace(
     **{  # noqa: PIE804
-        "app_name": "smollm3-pt-exams-vllm",
-        "model_name": "HuggingFaceTB/SmolLM3-3B",
-        "gpu": "A100",
+        "app_name": "amalia-pt-exams-vllm",
+        "model_name": "amalia-llm/AMALIA-9B-0626-DPO",
+        "gpu": "A100-80GB",
         "function_timeout_minutes": 120,
         "scaledown_window_minutes": 15,
         "cuda_image": "nvidia/cuda:12.9.0-devel-ubuntu22.04",
@@ -35,7 +35,7 @@ VLLM_CONFIG = SimpleNamespace(
         "hf_cache_dir": "/root/.cache/huggingface",
         "vllm_cache_dir": "/root/.cache/vllm",
         "model_args": {
-            "revision": "a07cc9a04f16550a088caea529712d1d335b0ac1",
+            "revision": "c4614b9b5c7b4fe303fa20902e692fc7dface640",
             "max_model_len": 4096,
             "gpu_memory_utilization": 0.9,
             "max_num_seqs": 32,
