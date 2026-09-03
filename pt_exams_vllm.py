@@ -21,8 +21,8 @@ from inspect_ai.solver import TaskState, generate
 
 VLLM_CONFIG = SimpleNamespace(
     **{  # noqa: PIE804
-        "app_name": "lfm25-pt-exams-vllm",
-        "model_name": "LiquidAI/LFM2.5-2.6B",
+        "app_name": "nemotron3-nano-4b-pt-exams-vllm",
+        "model_name": "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
         "gpu": "A100",
         "function_timeout_minutes": 120,
         "scaledown_window_minutes": 15,
@@ -30,17 +30,19 @@ VLLM_CONFIG = SimpleNamespace(
         "python_version": "3.12",
         "vllm_version": "0.21.0",
         "hf_secret_name": "huggingface",
-        "hf_cache_volume_name": "lfm25-huggingface-cache",
-        "vllm_cache_volume_name": "lfm25-vllm-cache",
+        "hf_cache_volume_name": "nemotron3-nano-4b-huggingface-cache",
+        "vllm_cache_volume_name": "nemotron3-nano-4b-vllm-cache",
         "hf_cache_dir": "/root/.cache/huggingface",
         "vllm_cache_dir": "/root/.cache/vllm",
         "model_args": {
-            "revision": "654f9463ce32b05d0429d76fe1f580b27d4c1ac0",
+            "revision": "dfaf35de3e30f1867dd8dbc38a7fc9fb52d3914f",
             "max_model_len": 4096,
             "gpu_memory_utilization": 0.9,
             "max_num_seqs": 32,
             "tensor_parallel_size": 1,
             "generation_config": "vllm",
+            "trust_remote_code": True,
+            "mamba_ssm_cache_dtype": "float32",
         },
     }
 )
@@ -53,10 +55,11 @@ EVAL_CONFIG = SimpleNamespace(
         "max_connections": 32,
         "max_tokens": 2048,
         "temperature": 0.0,
+        "enable_thinking": True,
         "stop_sequences": ("</s>", "<|im_end|>", "<|endoftext|>"),
         "inspect_ai_version": "0.3.261",
         "datasets_version": "5.0.1",
-        "log_volume_name": "lfm25-inspect-logs",
+        "log_volume_name": "nemotron3-nano-4b-inspect-logs",
         "remote_log_dir": "/logs",
         "local_log_dir": Path("logs"),
         "letters": "ABCD",
@@ -178,6 +181,11 @@ def pt_exams(
             temperature=EVAL_CONFIG.temperature,
             max_tokens=EVAL_CONFIG.max_tokens,
             stop_seqs=EVAL_CONFIG.stop_sequences,
+            extra_body={
+                "chat_template_kwargs": {
+                    "enable_thinking": EVAL_CONFIG.enable_thinking,
+                }
+            },
         ),
     )
 
