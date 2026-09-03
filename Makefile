@@ -8,22 +8,13 @@ help: # Show help for each of the Makefile recipes.
 install: # Install dependencies into the virtual environment
 	uv sync
 
-.PHONY: list
-list: # List available inspect tasks
-	uv run inspect list tasks pt_exams.py
-
-MODEL ?= openai/gpt-4.1-mini
-CONFIG ?= default
-LIMIT ?= 10
+MODEL ?= nemotron-3-nano-4b
+TASK ?= pt-exams
+LIMIT ?=
 
 .PHONY: eval
-eval: # Run the pt_exams evaluation (MODEL=... CONFIG=... LIMIT=...)
-	LLAMA_CPP_BASE_URL=http://localhost:8080/v1 \
-  LLAMA_CPP_API_KEY=local \
-  uv run inspect eval pt_exams.py \
-    --model 'openai-api/llama-cpp/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M' \
-    --max-connections 2 \
-		--limit 5
+eval: # Run a configured Modal evaluation (MODEL=... TASK=... LIMIT=...)
+	uv run modal run -m amelia_evals.runner --model '$(MODEL)' --task '$(TASK)' $(if $(LIMIT),--limit '$(LIMIT)')
 
 
 .PHONY: view
@@ -32,12 +23,13 @@ view: # Open the Inspect log viewer
 
 .PHONY: format
 format: # Format Python code with Ruff
-	uv run ruff format pt_exams.py
+	uv run ruff format src
 
-.PHONY: lint
-lint: # Lint Python code with Ruff
-	uv run ruff check pt_exams.py
+.PHONY: check
+check: # Lint and type check Python code
+	uv run ruff check src
+	uv run ty check
 
 .PHONY: clean
 clean: # Clean up temporary files
-	@rm -rf __pycache__ .pytest_cache .ruff_cache logs
+	@rm -rf __pycache__ src/**/__pycache__ .pytest_cache .ruff_cache logs

@@ -1,0 +1,68 @@
+pt-exams:
+  dataset_path: amalia-llm/pt_exams
+  dataset_revision: e1342b3ecdbc600b9c7ac07d08436cb27aa1ef56
+  dataset_config: default
+  split: test
+  limit: null
+  question_field: question
+  choices_field: choices
+  target_field: answer
+  target_type: index
+  letters: ABCD
+  metadata_fields:
+    - year
+    - phase
+    - subject
+    - question_group
+    - question_number
+    - is_completion
+  generation:
+    max_model_len: 4096
+    max_connections: 32
+    max_tokens: 2048
+    temperature: 0.0
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
+  prompt: |-
+    Pergunta:
+    {question}
+    Opções:
+    {choices}
+
+    Escolha a opção correta para a pergunta acima. Apresente o seu raciocínio antes de responder. No final, apresente a sua resposta no formato \boxed{{X}}, onde X é a letra da opção correta ({valid_letters}).
+
+cultura-viva:
+  dataset_path: amalia-llm/cultura-viva-pt-mcq
+  dataset_revision: dfac540b9899e2b7aa386ce85ac3d17fecb53f7f
+  dataset_config: default
+  split: train
+  limit: null
+  question_field: question
+  choices_field: choices.text
+  target_field: answerKey
+  target_type: letter
+  letters: ABCD
+  metadata_fields:
+    - id
+    - domain
+    - _task_type
+    - _seed_id
+    - _reviewed_at
+  generation:
+    max_model_len: 4096
+    max_connections: 32
+    max_tokens: 2048
+    temperature: 0.0
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
+  prompt: |-
+    Pergunta:
+    {question}
+    Opções:
+    {choices}
+
+    Escolha a opção correta para a pergunta acima. Apresente o seu raciocínio antes de responder. No final, apresente a sua resposta no formato \boxed{{X}}, onde X é a letra da opção correta ({valid_letters}).

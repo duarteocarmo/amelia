@@ -1,0 +1,280 @@
+import json
+import re
+from functools import partial
+from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
+
+import modal
+from inspect_ai import Task, eval
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.model import GenerateConfig
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    scorer,
+    stderr,
+)
+from inspect_ai.solver import TaskState, generate
+
+from amelia_evals.config import (
+    ModelConfig,
+    TaskConfig,
+    ThinkingConfig,
+    config_named,
+    load_model_registry,
+    load_task_registry,
+)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RUNNER_CONFIG = SimpleNamespace(
+    **{  # noqa: PIE804
+        "app_name": "amelia-evals-vllm",
+        "models_path": PROJECT_ROOT / "configs/models.yaml",
+        "tasks_path": PROJECT_ROOT / "configs/tasks.yaml",
+        "function_timeout_minutes": 120,
+        "scaledown_window_minutes": 15,
+        "cuda_image": "nvidia/cuda:12.9.0-devel-ubuntu22.04",
+        "python_version": "3.12",
+        "vllm_version": "0.21.0",
+        "inspect_ai_version": "0.3.261",
+        "datasets_version": "5.0.1",
+        "pydantic_version": "2.13.5",
+        "pyyaml_version": "6.0.3",
+        "hf_secret_name": "huggingface",
+        "hf_cache_dir": "/root/.cache/huggingface",
+        "vllm_cache_dir": "/root/.cache/vllm",
+        "remote_log_dir": "/logs",
+        "local_log_dir": PROJECT_ROOT / "logs",
+    }
+)
+
+app = modal.App(name=RUNNER_CONFIG.app_name)
+image = (
+    modal.Image.from_registry(
+        tag=RUNNER_CONFIG.cuda_image,
+        add_python=RUNNER_CONFIG.python_version,
+    )
+    .entrypoint(entrypoint_commands=[])
+    .uv_pip_install(
+        f"vllm=={RUNNER_CONFIG.vllm_version}",
+        f"inspect-ai=={RUNNER_CONFIG.inspect_ai_version}",
+        f"datasets=={RUNNER_CONFIG.datasets_version}",
+        f"pydantic=={RUNNER_CONFIG.pydantic_version}",
+        f"pyyaml=={RUNNER_CONFIG.pyyaml_version}",
+    )
+    .env(
+        vars={
+            "HF_XET_HIGH_PERFORMANCE": "1",
+            "VLLM_LOG_STATS_INTERVAL": "10",
+        }
+    )
+)
+hf_secret = modal.Secret.from_name(name=RUNNER_CONFIG.hf_secret_name)
+
+
+def value_at(record: dict, field: str):
+    value = record
+    for key in field.split("."):
+        value = value[key]
+    return value
+
+
+def format_letters(letters: str) -> str:
+    return f"{', '.join(letters[:-1])} ou {letters[-1]}"
+
+
+def record_to_sample(record: dict, task_config: TaskConfig) -> Sample:
+    letters = task_config.letters
+    choices = value_at(record=record, field=task_config.choices_field)
+    question = value_at(record=record, field=task_config.question_field)
+    target_value = value_at(record=record, field=task_config.target_field)
+
+    if task_config.target_type == "index":
+        target = letters[target_value]
+    else:
+        target = str(target_value).upper()
+
+    choice_lines = "\n".join(
+        f"({letter}) {choice}" for letter, choice in zip(letters, choices, strict=True)
+    )
+    return Sample(
+        input=task_config.prompt.format(
+            question=question.strip(),
+            choices=choice_lines,
+            valid_letters=format_letters(letters=letters),
+        ),
+        target=target,
+        metadata={
+            field: value_at(record=record, field=field)
+            for field in task_config.metadata_fields
+        },
+    )
+
+
+def extract_answer(response: str, letters: str) -> str | None:
+    letter_class = re.escape(pattern=letters)
+    answer_phrases = (
+        "resposta correta|resposta certa|resposta verdadeira|answer|"
+        "opção correta|opção certa|opção verdadeira|correct option"
+    )
+    patterns = (
+        (rf"\\boxed{{([{letter_class}])}}", re.IGNORECASE),
+        (
+            rf"(?:{answer_phrases}).{{0,10}}([{letter_class}])\b",
+            re.IGNORECASE,
+        ),
+        (rf"([{letter_class}])\.?\s*$", 0),
+        (rf"\b([{letter_class}])\b", 0),
+    )
+    for pattern, flags in patterns:
+        match = re.search(pattern=pattern, string=response, flags=flags)
+        if match:
+            return match.group(1).upper()
+    return None
+
+
+@scorer(metrics=[accuracy(), stderr()])
+def multiple_choice_scorer(letters: str) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        answer = extract_answer(response=state.output.completion, letters=letters)
+        return Score(
+            value=CORRECT if answer == target.text else INCORRECT,
+            answer=answer or "[not extracted]",
+            explanation=state.output.completion,
+        )
+
+    return score
+
+
+def multiple_choice_task(
+    task_name: str,
+    task_config: TaskConfig,
+    thinking_config: ThinkingConfig,
+    limit: int | None,
+) -> Task:
+    generation = task_config.generation
+    extra_body = None
+    if thinking_config.template_configurable:
+        extra_body = {
+            "chat_template_kwargs": {
+                "enable_thinking": thinking_config.enabled,
+            }
+        }
+
+    return Task(
+        dataset=hf_dataset(
+            path=task_config.dataset_path,
+            name=task_config.dataset_config,
+            revision=task_config.dataset_revision,
+            split=task_config.split,
+            sample_fields=partial(record_to_sample, task_config=task_config),
+            auto_id=True,
+            limit=limit,
+        ),
+        solver=generate(),
+        scorer=multiple_choice_scorer(letters=task_config.letters),
+        config=GenerateConfig(
+            temperature=generation.temperature,
+            max_tokens=generation.max_tokens,
+            stop_seqs=generation.stop_sequences,
+            extra_body=extra_body,
+        ),
+        name=task_name,
+    )
+
+
+@app.function(image=image, secrets=[hf_secret])
+def run_eval(
+    model_name: str,
+    task_name: str,
+    model_config: ModelConfig,
+    task_config: TaskConfig,
+    limit: int | None,
+) -> list[dict]:
+    model_args = model_config.model_args.model_dump(mode="json", exclude_none=True)
+    model_args["max_model_len"] = task_config.generation.max_model_len
+
+    try:
+        logs = eval(
+            tasks=multiple_choice_task(
+                task_name=task_name,
+                task_config=task_config,
+                thinking_config=model_config.thinking,
+                limit=limit,
+            ),
+            model=f"vllm/{model_config.model_name}",
+            model_args=model_args,
+            max_connections=task_config.generation.max_connections,
+            metadata={
+                "model_config": model_config.model_dump(mode="json"),
+                "task_config": task_config.model_dump(mode="json"),
+                "limit": limit,
+            },
+            log_dir=RUNNER_CONFIG.remote_log_dir,
+            display="plain",
+        )
+        return [
+            {
+                "model": model_name,
+                "task": task_name,
+                "status": log.status,
+                "log_file": Path(log.location).name,
+                "results": log.results.model_dump(mode="json") if log.results else None,
+                "error": log.error.model_dump(mode="json") if log.error else None,
+            }
+            for log in logs
+        ]
+    finally:
+        modal.Volume.from_name(name=model_config.volumes.logs).commit()
+
+
+@app.local_entrypoint()
+def main(model: str, task: str, limit: int | None = None) -> None:
+    models = load_model_registry(path=RUNNER_CONFIG.models_path)
+    tasks = load_task_registry(path=RUNNER_CONFIG.tasks_path)
+    model_config = config_named(registry=models, name=model, kind="model")
+    task_config = config_named(registry=tasks, name=task, kind="task")
+    selected_limit = limit if limit is not None else task_config.limit
+    log_volume = modal.Volume.from_name(
+        name=model_config.volumes.logs,
+        create_if_missing=True,
+    )
+    volumes: dict[str | PurePosixPath, modal.Volume | modal.CloudBucketMount] = {
+        RUNNER_CONFIG.hf_cache_dir: modal.Volume.from_name(
+            name=model_config.volumes.huggingface,
+            create_if_missing=True,
+        ),
+        RUNNER_CONFIG.vllm_cache_dir: modal.Volume.from_name(
+            name=model_config.volumes.vllm,
+            create_if_missing=True,
+        ),
+        RUNNER_CONFIG.remote_log_dir: log_volume,
+    }
+
+    summaries = run_eval.with_options(
+        gpu=model_config.gpu,
+        timeout=RUNNER_CONFIG.function_timeout_minutes * 60,
+        scaledown_window=RUNNER_CONFIG.scaledown_window_minutes * 60,
+        volumes=volumes,
+    ).remote(
+        model_name=model,
+        task_name=task,
+        model_config=model_config,
+        task_config=task_config,
+        limit=selected_limit,
+    )
+    RUNNER_CONFIG.local_log_dir.mkdir(parents=True, exist_ok=True)
+
+    for summary in summaries:
+        log_file = summary["log_file"]
+        local_path = RUNNER_CONFIG.local_log_dir / log_file
+        with local_path.open(mode="wb") as destination:
+            for chunk in log_volume.read_file(path=log_file):
+                destination.write(chunk)
+        summary["local_log"] = str(local_path)
+
+    print(json.dumps(summaries, indent=2, ensure_ascii=False))

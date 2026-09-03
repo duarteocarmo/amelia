@@ -1,0 +1,57 @@
+smollm3-3b:
+  model_name: HuggingFaceTB/SmolLM3-3B
+  gpu: A100
+  volume_prefix: amalia
+  thinking:
+    enabled: true
+    template_configurable: true
+  model_args:
+    revision: a07cc9a04f16550a088caea529712d1d335b0ac1
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 32
+    tensor_parallel_size: 1
+    generation_config: vllm
+
+amalia-9b-dpo:
+  model_name: amalia-llm/AMALIA-9B-0626-DPO
+  gpu: A100-80GB
+  volume_prefix: amalia
+  thinking:
+    enabled: false
+    template_configurable: false
+  model_args:
+    revision: c4614b9b5c7b4fe303fa20902e692fc7dface640
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 32
+    tensor_parallel_size: 1
+    generation_config: vllm
+
+lfm2.5-2.6b:
+  model_name: LiquidAI/LFM2.5-2.6B
+  gpu: A100
+  volume_prefix: lfm25
+  thinking:
+    enabled: true
+    template_configurable: false
+  model_args:
+    revision: 654f9463ce32b05d0429d76fe1f580b27d4c1ac0
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 32
+    tensor_parallel_size: 1
+    generation_config: vllm
+
+nemotron-3-nano-4b:
+  model_name: nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16
+  gpu: A100
+  volume_prefix: nemotron3-nano-4b
+  thinking:
+    enabled: true
+    template_configurable: true
+  model_args:
+    revision: dfaf35de3e30f1867dd8dbc38a7fc9fb52d3914f
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 32
+    tensor_parallel_size: 1
+    generation_config: vllm
+    trust_remote_code: true
+    mamba_ssm_cache_dtype: float32
