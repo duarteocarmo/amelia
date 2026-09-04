@@ -32,4 +32,4 @@ check: # Lint and type check Python code
 
 .PHONY: clean
 clean: # Clean up temporary files
-	@rm -rf __pycache__ src/**/__pycache__ .pytest_cache .ruff_cache logs
+	@rm -rf __pycache__ src/**/__pycache__ .pytest_cache .ruff_cache
