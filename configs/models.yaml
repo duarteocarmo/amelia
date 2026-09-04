@@ -12,6 +12,20 @@ smollm3-3b:
     tensor_parallel_size: 1
     generation_config: vllm
 
+amalia-9b-sft:
+  model_name: amalia-llm/AMALIA-9B-0626-SFT
+  gpu: A100-80GB
+  volume_prefix: amalia
+  thinking:
+    enabled: false
+    template_configurable: false
+  model_args:
+    revision: aa1de672d50020ed7ddd48d811300347c0bfffe0
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 32
+    tensor_parallel_size: 1
+    generation_config: vllm
+
 amalia-9b-dpo:
   model_name: amalia-llm/AMALIA-9B-0626-DPO
   gpu: A100-80GB

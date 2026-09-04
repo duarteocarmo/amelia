@@ -76,7 +76,7 @@ class GenerationConfig(Config):
 class TaskConfig(Config):
     dataset_path: str = Field(min_length=1)
     dataset_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
-    dataset_config: str = Field(min_length=1)
+    dataset_config: str | tuple[str, ...]
     split: str = Field(min_length=1)
     limit: int | None = Field(default=None, gt=0)
     question_field: str = Field(min_length=1)
@@ -86,6 +86,7 @@ class TaskConfig(Config):
     letters: str
     metadata_fields: tuple[str, ...]
     generation: GenerationConfig
+    choice_format: str = "({letter}) {choice}"
     prompt: str = Field(min_length=1)
 
     @field_validator("letters")
@@ -97,10 +98,30 @@ class TaskConfig(Config):
             raise ValueError("letters must be unique")
         return letters
 
+    @field_validator("dataset_config")
+    @classmethod
+    def validate_dataset_config(
+        cls, dataset_config: str | tuple[str, ...]
+    ) -> str | tuple[str, ...]:
+        configs = (
+            (dataset_config,) if isinstance(dataset_config, str) else dataset_config
+        )
+        if not configs or any(not config for config in configs):
+            raise ValueError("dataset_config must contain at least one name")
+        return dataset_config
+
+    @field_validator("choice_format")
+    @classmethod
+    def validate_choice_format(cls, choice_format: str) -> str:
+        placeholders = ("{letter}", "{choice}")
+        if any(placeholder not in choice_format for placeholder in placeholders):
+            raise ValueError("choice_format must contain {letter} and {choice}")
+        return choice_format
+
     @field_validator("prompt")
     @classmethod
     def validate_prompt(cls, prompt: str) -> str:
-        placeholders = ("{question}", "{choices}", "{valid_letters}")
+        placeholders = ("{question}", "{choices}")
         missing = [
             placeholder for placeholder in placeholders if placeholder not in prompt
         ]

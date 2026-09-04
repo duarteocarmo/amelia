@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import modal
 from inspect_ai import Task, eval
-from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.dataset import Dataset, MemoryDataset, Sample, hf_dataset
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import (
     CORRECT,
@@ -42,6 +42,7 @@ RUNNER_CONFIG = SimpleNamespace(
         "vllm_version": "0.21.0",
         "inspect_ai_version": "0.3.261",
         "datasets_version": "5.0.1",
+        "transformers_version": "5.16.1",
         "pydantic_version": "2.13.5",
         "pyyaml_version": "6.0.3",
         "hf_secret_name": "huggingface",
@@ -63,6 +64,7 @@ image = (
         f"vllm=={RUNNER_CONFIG.vllm_version}",
         f"inspect-ai=={RUNNER_CONFIG.inspect_ai_version}",
         f"datasets=={RUNNER_CONFIG.datasets_version}",
+        f"transformers=={RUNNER_CONFIG.transformers_version}",
         f"pydantic=={RUNNER_CONFIG.pydantic_version}",
         f"pyyaml=={RUNNER_CONFIG.pyyaml_version}",
     )
@@ -99,7 +101,8 @@ def record_to_sample(record: dict, task_config: TaskConfig) -> Sample:
         target = str(target_value).upper()
 
     choice_lines = "\n".join(
-        f"({letter}) {choice}" for letter, choice in zip(letters, choices, strict=True)
+        task_config.choice_format.format(letter=letter, choice=choice)
+        for letter, choice in zip(letters, choices, strict=True)
     )
     return Sample(
         input=task_config.prompt.format(
@@ -137,6 +140,53 @@ def extract_answer(response: str, letters: str) -> str | None:
     return None
 
 
+def task_dataset(
+    task_name: str,
+    task_config: TaskConfig,
+    limit: int | None,
+) -> Dataset:
+    configs = task_config.dataset_config
+    configs = (configs,) if isinstance(configs, str) else configs
+
+    if len(configs) == 1:
+        return hf_dataset(
+            path=task_config.dataset_path,
+            name=configs[0],
+            revision=task_config.dataset_revision,
+            split=task_config.split,
+            sample_fields=partial(record_to_sample, task_config=task_config),
+            auto_id=True,
+            limit=limit,
+        )
+
+    samples = []
+    for dataset_config in configs:
+        remaining = None if limit is None else limit - len(samples)
+        if remaining is not None and remaining <= 0:
+            break
+        dataset = hf_dataset(
+            path=task_config.dataset_path,
+            name=dataset_config,
+            revision=task_config.dataset_revision,
+            split=task_config.split,
+            sample_fields=partial(record_to_sample, task_config=task_config),
+            auto_id=True,
+        )
+        selected_samples = list(dataset)
+        if remaining is not None:
+            selected_samples = selected_samples[:remaining]
+        samples.extend(
+            sample.model_copy(update={"id": f"{dataset_config}:{sample.id}"})
+            for sample in selected_samples
+        )
+
+    return MemoryDataset(
+        samples=samples,
+        name=task_name,
+        location=task_config.dataset_path,
+    )
+
+
 @scorer(metrics=[accuracy(), stderr()])
 def multiple_choice_scorer(letters: str) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
@@ -166,13 +216,9 @@ def multiple_choice_task(
         }
 
     return Task(
-        dataset=hf_dataset(
-            path=task_config.dataset_path,
-            name=task_config.dataset_config,
-            revision=task_config.dataset_revision,
-            split=task_config.split,
-            sample_fields=partial(record_to_sample, task_config=task_config),
-            auto_id=True,
+        dataset=task_dataset(
+            task_name=task_name,
+            task_config=task_config,
             limit=limit,
         ),
         solver=generate(),
