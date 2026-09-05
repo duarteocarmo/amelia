@@ -105,3 +105,64 @@ cultura-viva:
     {choices}
 
     Escolha a opção correta para a pergunta acima. Apresente o seu raciocínio antes de responder. No final, apresente a sua resposta no formato \boxed{{X}}, onde X é a letra da opção correta ({valid_letters}).
+
+legalbench-pt:
+  dataset_path: BeatrizCanaverde/LegalBench.PT
+  dataset_revision: 126ca85da885c46e4700368f0d0d64be31542eb5
+  dataset_config:
+    - Direito_Administrativo
+    - Direito_Aéreo
+    - Direito_Bancário
+    - Direito_Comercial
+    - Direito_Constitucional
+    - Direito_Financeiro
+    - Direito_Fiscal
+    - Direito_Internacional_Privado
+    - Direito_Internacional_Público
+    - Direito_Marítimo
+    - Direito_Penal
+    - Direito_Processual_Administrativo
+    - Direito_Processual_Civil
+    - Direito_Processual_Penal
+    - Direito_da_Concorrência
+    - Direito_da_Energia
+    - Direito_da_Família
+    - Direito_da_Insolvência
+    - Direito_da_UE_e_Comunitário
+    - Direito_das_Finanças_Públicas
+    - Direito_das_Obrigações
+    - Direito_das_Sociedades_Comerciais
+    - Direito_das_Sucessões
+    - Direito_do_Ambiente
+    - Direito_do_Trabalho
+    - Direito_do_Urbanismo
+    - Direito_dos_Contratos
+    - Direito_dos_Transportes
+    - Direito_dos_Valores_Mobiliários
+    - Direitos_Reais
+  split: test
+  limit: null
+  question_field: Question
+  question_suffix: "O output deverá ser apenas: 'A resposta correta é: {letra}'"
+  target_field: Answer
+  target_type: letter
+  filter_field: Type
+  filter_value: Multiple Choice
+  letters: ABCD
+  metadata_fields:
+    - Field of Law
+    - Type
+    - ID
+  generation:
+    max_model_len: 4096
+    max_connections: 32
+    max_tokens: 128
+    temperature: 0.0
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
+  prompt: |-
+    {question}
+
+    Responde apenas no formato \boxed{{X}}, onde X é a letra da opção correta ({valid_letters}).

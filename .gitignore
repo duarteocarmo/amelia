@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 logs/
+logs.old/
 .ruff_cache/
 .DS_Store
