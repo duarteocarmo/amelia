@@ -90,10 +90,14 @@ def format_letters(letters: str) -> str:
 
 
 def record_to_sample(record: dict, task_config: TaskConfig) -> Sample | list[Sample]:
-    if task_config.filter_field is not None and value_at(
-        record=record,
-        field=task_config.filter_field,
-    ) != task_config.filter_value:
+    if (
+        task_config.filter_field is not None
+        and value_at(
+            record=record,
+            field=task_config.filter_field,
+        )
+        != task_config.filter_value
+    ):
         return []
 
     letters = task_config.letters
