@@ -89,10 +89,17 @@ def format_letters(letters: str) -> str:
     return f"{', '.join(letters[:-1])} ou {letters[-1]}"
 
 
-def record_to_sample(record: dict, task_config: TaskConfig) -> Sample:
+def record_to_sample(record: dict, task_config: TaskConfig) -> Sample | list[Sample]:
+    if task_config.filter_field is not None and value_at(
+        record=record,
+        field=task_config.filter_field,
+    ) != task_config.filter_value:
+        return []
+
     letters = task_config.letters
-    choices = value_at(record=record, field=task_config.choices_field)
     question = value_at(record=record, field=task_config.question_field)
+    if task_config.question_suffix is not None:
+        question = question.removesuffix(task_config.question_suffix).rstrip()
     target_value = value_at(record=record, field=task_config.target_field)
 
     if task_config.target_type == "index":
@@ -100,10 +107,14 @@ def record_to_sample(record: dict, task_config: TaskConfig) -> Sample:
     else:
         target = str(target_value).upper()
 
-    choice_lines = "\n".join(
-        task_config.choice_format.format(letter=letter, choice=choice)
-        for letter, choice in zip(letters, choices, strict=True)
-    )
+    choice_lines = ""
+    if task_config.choices_field is not None:
+        choices = value_at(record=record, field=task_config.choices_field)
+        choice_lines = "\n".join(
+            task_config.choice_format.format(letter=letter, choice=choice)
+            for letter, choice in zip(letters, choices, strict=True)
+        )
+
     return Sample(
         input=task_config.prompt.format(
             question=question.strip(),
@@ -144,19 +155,30 @@ def task_dataset(
     task_name: str,
     task_config: TaskConfig,
     limit: int | None,
+    *,
+    shuffle: bool = False,
+    seed: int | None = None,
 ) -> Dataset:
     configs = task_config.dataset_config
     configs = (configs,) if isinstance(configs, str) else configs
 
     if len(configs) == 1:
-        return hf_dataset(
+        dataset = hf_dataset(
             path=task_config.dataset_path,
             name=configs[0],
             revision=task_config.dataset_revision,
             split=task_config.split,
             sample_fields=partial(record_to_sample, task_config=task_config),
             auto_id=True,
-            limit=limit,
+            shuffle=shuffle,
+            seed=seed,
+        )
+        if limit is None:
+            return dataset
+        return MemoryDataset(
+            samples=list(dataset)[:limit],
+            name=task_name,
+            location=task_config.dataset_path,
         )
 
     samples = []
@@ -171,6 +193,8 @@ def task_dataset(
             split=task_config.split,
             sample_fields=partial(record_to_sample, task_config=task_config),
             auto_id=True,
+            shuffle=shuffle,
+            seed=seed,
         )
         selected_samples = list(dataset)
         if remaining is not None:

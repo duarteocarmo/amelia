@@ -80,9 +80,12 @@ class TaskConfig(Config):
     split: str = Field(min_length=1)
     limit: int | None = Field(default=None, gt=0)
     question_field: str = Field(min_length=1)
-    choices_field: str = Field(min_length=1)
+    question_suffix: str | None = Field(default=None, min_length=1)
+    choices_field: str | None = Field(default=None, min_length=1)
     target_field: str = Field(min_length=1)
     target_type: Literal["index", "letter"]
+    filter_field: str | None = Field(default=None, min_length=1)
+    filter_value: str | int | bool | None = None
     letters: str
     metadata_fields: tuple[str, ...]
     generation: GenerationConfig
@@ -110,6 +113,16 @@ class TaskConfig(Config):
             raise ValueError("dataset_config must contain at least one name")
         return dataset_config
 
+    @model_validator(mode="after")
+    def validate_fields(self) -> Self:
+        if (self.filter_field is None) != (self.filter_value is None):
+            raise ValueError("filter_field and filter_value must be set together")
+        has_choices = self.choices_field is not None
+        uses_choices = "{choices}" in self.prompt
+        if has_choices != uses_choices:
+            raise ValueError("choices_field and {choices} must be used together")
+        return self
+
     @field_validator("choice_format")
     @classmethod
     def validate_choice_format(cls, choice_format: str) -> str:
@@ -121,12 +134,8 @@ class TaskConfig(Config):
     @field_validator("prompt")
     @classmethod
     def validate_prompt(cls, prompt: str) -> str:
-        placeholders = ("{question}", "{choices}")
-        missing = [
-            placeholder for placeholder in placeholders if placeholder not in prompt
-        ]
-        if missing:
-            raise ValueError(f"prompt is missing placeholders: {', '.join(missing)}")
+        if "{question}" not in prompt:
+            raise ValueError("prompt is missing placeholder: {question}")
         return prompt
 
 
