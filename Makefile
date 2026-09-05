@@ -30,6 +30,10 @@ check: # Lint and type check Python code
 	uv run ruff check src
 	uv run ty check
 
+.PHONY: test
+test: # Run tests in parallel
+	uv run pytest -n auto
+
 .PHONY: clean
 clean: # Clean up temporary files
 	@rm -rf __pycache__ src/**/__pycache__ .pytest_cache .ruff_cache

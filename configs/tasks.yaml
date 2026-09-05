@@ -17,9 +17,9 @@ pt-exams:
     - question_number
     - is_completion
   generation:
-    max_model_len: 4096
+    max_model_len: 8192
     max_connections: 32
-    max_tokens: 2048
+    max_tokens: 4096
     temperature: 0.0
     stop_sequences:
       - "</s>"
@@ -57,9 +57,9 @@ alba-mcq:
     - subject
     - scores
   generation:
-    max_model_len: 4096
+    max_model_len: 8192
     max_connections: 32
-    max_tokens: 2048
+    max_tokens: 4096
     temperature: 0.0
     stop_sequences:
       - "</s>"
@@ -90,9 +90,9 @@ cultura-viva:
     - _seed_id
     - _reviewed_at
   generation:
-    max_model_len: 4096
+    max_model_len: 8192
     max_connections: 32
-    max_tokens: 2048
+    max_tokens: 4096
     temperature: 0.0
     stop_sequences:
       - "</s>"
@@ -154,9 +154,9 @@ legalbench-pt:
     - Type
     - ID
   generation:
-    max_model_len: 4096
+    max_model_len: 8192
     max_connections: 32
-    max_tokens: 128
+    max_tokens: 4096
     temperature: 0.0
     stop_sequences:
       - "</s>"

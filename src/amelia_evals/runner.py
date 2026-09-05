@@ -131,24 +131,12 @@ def record_to_sample(record: dict, task_config: TaskConfig) -> Sample | list[Sam
 
 def extract_answer(response: str, letters: str) -> str | None:
     letter_class = re.escape(pattern=letters)
-    answer_phrases = (
-        "resposta correta|resposta certa|resposta verdadeira|answer|"
-        "opção correta|opção certa|opção verdadeira|correct option"
+    matches = re.findall(
+        pattern=rf"\\boxed{{([{letter_class}])}}",
+        string=response,
+        flags=re.IGNORECASE,
     )
-    patterns = (
-        (rf"\\boxed{{([{letter_class}])}}", re.IGNORECASE),
-        (
-            rf"(?:{answer_phrases}).{{0,10}}([{letter_class}])\b",
-            re.IGNORECASE,
-        ),
-        (rf"([{letter_class}])\.?\s*$", 0),
-        (rf"\b([{letter_class}])\b", 0),
-    )
-    for pattern, flags in patterns:
-        match = re.search(pattern=pattern, string=response, flags=flags)
-        if match:
-            return match.group(1).upper()
-    return None
+    return matches[-1].upper() if matches else None
 
 
 def task_dataset(
