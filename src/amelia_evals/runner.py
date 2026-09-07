@@ -7,7 +7,8 @@ from types import SimpleNamespace
 import modal
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample, hf_dataset
-from inspect_ai.model import GenerateConfig
+from inspect_ai.log import read_eval_log_sample_summaries
+from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -23,7 +24,6 @@ from inspect_ai.solver import TaskState, generate
 from amelia_evals.config import (
     ModelConfig,
     TaskConfig,
-    ThinkingConfig,
     config_named,
     load_model_registry,
     load_task_registry,
@@ -37,6 +37,9 @@ RUNNER_CONFIG = SimpleNamespace(
         "tasks_path": PROJECT_ROOT / "configs/tasks.yaml",
         "function_timeout_minutes": 120,
         "scaledown_window_minutes": 15,
+        "fail_on_error": False,
+        "score_on_error": True,
+        "retry_on_error": 1,
         "cuda_image": "nvidia/cuda:12.9.0-devel-ubuntu22.04",
         "python_version": "3.12",
         "vllm_version": "0.21.0",
@@ -216,21 +219,34 @@ def multiple_choice_scorer(letters: str) -> Scorer:
     return score
 
 
+def generation_config_for(model_config: ModelConfig) -> GenerateConfig:
+    generation = model_config.generation
+    thinking = model_config.thinking
+    # These vLLM sampling parameters are not forwarded by Inspect's OpenAI fields.
+    extra_body = generation.model_dump(
+        include={"top_k", "repetition_penalty"}, exclude_none=True
+    )
+    if thinking.template_configurable:
+        extra_body["chat_template_kwargs"] = {"enable_thinking": thinking.enabled}
+    return GenerateConfig(
+        timeout=generation.timeout,
+        attempt_timeout=generation.timeout,
+        max_retries=generation.max_retries,
+        temperature=generation.temperature,
+        top_p=generation.top_p,
+        seed=generation.seed,
+        max_tokens=generation.max_tokens,
+        stop_seqs=generation.stop_sequences,
+        extra_body=extra_body or None,
+    )
+
+
 def multiple_choice_task(
     task_name: str,
     task_config: TaskConfig,
-    thinking_config: ThinkingConfig,
+    model_config: ModelConfig,
     limit: int | None,
 ) -> Task:
-    generation = task_config.generation
-    extra_body = None
-    if thinking_config.template_configurable:
-        extra_body = {
-            "chat_template_kwargs": {
-                "enable_thinking": thinking_config.enabled,
-            }
-        }
-
     return Task(
         dataset=task_dataset(
             task_name=task_name,
@@ -239,12 +255,7 @@ def multiple_choice_task(
         ),
         solver=generate(),
         scorer=multiple_choice_scorer(letters=task_config.letters),
-        config=GenerateConfig(
-            temperature=generation.temperature,
-            max_tokens=generation.max_tokens,
-            stop_seqs=generation.stop_sequences,
-            extra_body=extra_body,
-        ),
+        config=generation_config_for(model_config=model_config),
         name=task_name,
     )
 
@@ -258,27 +269,35 @@ def run_eval(
     limit: int | None,
 ) -> list[dict]:
     model_args = model_config.model_args.model_dump(mode="json", exclude_none=True)
-    model_args["max_model_len"] = task_config.generation.max_model_len
 
     try:
-        logs = eval(
-            tasks=multiple_choice_task(
-                task_name=task_name,
-                task_config=task_config,
-                thinking_config=model_config.thinking,
-                limit=limit,
-            ),
+        # Start vLLM outside request deadlines and close it after evaluation.
+        with get_model(
             model=f"vllm/{model_config.model_name}",
-            model_args=model_args,
-            max_connections=task_config.generation.max_connections,
-            metadata={
-                "model_config": model_config.model_dump(mode="json"),
-                "task_config": task_config.model_dump(mode="json"),
-                "limit": limit,
-            },
-            log_dir=RUNNER_CONFIG.remote_log_dir,
-            display="plain",
-        )
+            lazy_init=False,
+            **model_args,
+        ) as model:
+            logs = eval(
+                tasks=multiple_choice_task(
+                    task_name=task_name,
+                    task_config=task_config,
+                    model_config=model_config,
+                    limit=limit,
+                ),
+                model=model,
+                max_connections=model_config.generation.max_connections,
+                fail_on_error=RUNNER_CONFIG.fail_on_error,
+                score_on_error=RUNNER_CONFIG.score_on_error,
+                retry_on_error=RUNNER_CONFIG.retry_on_error,
+                metadata={
+                    "model_variant": model_name,
+                    "model_config": model_config.model_dump(mode="json"),
+                    "task_config": task_config.model_dump(mode="json"),
+                    "limit": limit,
+                },
+                log_dir=RUNNER_CONFIG.remote_log_dir,
+                display="plain",
+            )
         return [
             {
                 "model": model_name,
@@ -287,6 +306,10 @@ def run_eval(
                 "log_file": Path(log.location).name,
                 "results": log.results.model_dump(mode="json") if log.results else None,
                 "error": log.error.model_dump(mode="json") if log.error else None,
+                "sample_errors": sum(
+                    sample.error is not None
+                    for sample in read_eval_log_sample_summaries(log_file=log.location)
+                ),
             }
             for log in logs
         ]

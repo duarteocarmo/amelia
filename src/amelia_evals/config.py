@@ -43,8 +43,22 @@ class ModelArgsConfig(Config):
     max_num_seqs: int = Field(gt=0)
     tensor_parallel_size: int = Field(gt=0)
     generation_config: str = Field(min_length=1)
+    max_model_len: int = Field(gt=0)
     trust_remote_code: bool | None = None
     mamba_ssm_cache_dtype: Literal["auto", "float16", "float32"] | None = None
+
+
+class GenerationConfig(Config):
+    timeout: int = Field(gt=0)
+    max_retries: int = Field(ge=0)
+    max_connections: int = Field(gt=0)
+    max_tokens: int = Field(gt=0)
+    temperature: float = Field(ge=0)
+    top_p: float = Field(default=1.0, gt=0, le=1)
+    top_k: int | None = Field(default=None, gt=0)
+    repetition_penalty: float | None = Field(default=None, gt=0)
+    seed: int = Field(default=42, ge=0)
+    stop_sequences: tuple[str, ...] = Field(min_length=1)
 
 
 class ModelConfig(Config):
@@ -52,24 +66,19 @@ class ModelConfig(Config):
     gpu: str = Field(min_length=1)
     volume_prefix: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
     thinking: ThinkingConfig
+    generation: GenerationConfig
     model_args: ModelArgsConfig
 
     @property
     def volumes(self) -> VolumeConfig:
         return VolumeConfig.from_prefix(prefix=self.volume_prefix)
 
-
-class GenerationConfig(Config):
-    max_model_len: int = Field(gt=0)
-    max_connections: int = Field(gt=0)
-    max_tokens: int = Field(gt=0)
-    temperature: float = Field(ge=0)
-    stop_sequences: tuple[str, ...] = Field(min_length=1)
-
     @model_validator(mode="after")
     def validate_token_budget(self) -> Self:
-        if self.max_tokens > self.max_model_len:
-            raise ValueError("max_tokens cannot exceed max_model_len")
+        if self.generation.max_tokens >= self.model_args.max_model_len:
+            raise ValueError(
+                "max_model_len must leave room for input beyond max_tokens"
+            )
         return self
 
 
@@ -88,7 +97,6 @@ class TaskConfig(Config):
     filter_value: str | int | bool | None = None
     letters: str
     metadata_fields: tuple[str, ...]
-    generation: GenerationConfig
     choice_format: str = "({letter}) {choice}"
     prompt: str = Field(min_length=1)
 

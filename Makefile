@@ -16,7 +16,6 @@ LIMIT ?=
 eval: # Run a configured Modal evaluation (MODEL=... TASK=... LIMIT=...)
 	uv run modal run -m amelia_evals.runner --model '$(MODEL)' --task '$(TASK)' $(if $(LIMIT),--limit '$(LIMIT)')
 
-
 .PHONY: view
 view: # Open the Inspect log viewer
 	uv run inspect view

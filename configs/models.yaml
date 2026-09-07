@@ -1,3 +1,14 @@
+# Inspired by https://artificialanalysis.ai/methodology/intelligence-benchmarking#general-testing-parameters
+# Unlike AA, we cap reasoning output at 32K instead of each model's disclosed maximum.
+# Temperature: 0 without thinking, 0.6 with thinking; lab recommendations override defaults.
+# Sampling: follow lab guidance; otherwise top-p 1, no top-k or repetition penalty.
+# Output: 32K with thinking, 16K otherwise.
+# Context: output budget + 8K for input. Verify actual prompt lengths before full runs.
+# Seed: 42 for all models. Token budgets are evaluation policy, not model limits.
+# Requests: 120-second generation deadline, no model-call retries.
+# Sample errors: one retry, then score missing answers as incorrect and continue.
+# Keep failed samples in the denominator. Retry policy lives in runner.py.
+
 smollm3-3b:
   model_name: HuggingFaceTB/SmolLM3-3B
   gpu: A100
@@ -5,12 +16,52 @@ smollm3-3b:
   thinking:
     enabled: true
     template_configurable: true
+  generation:
+    timeout: 120
+    max_retries: 0
+    temperature: 0.6 # HF recommendation.
+    top_p: 0.95 # HF recommendation.
+    max_tokens: 32768
+    seed: 42
+    max_connections: 32
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
   model_args:
     revision: a07cc9a04f16550a088caea529712d1d335b0ac1
     gpu_memory_utilization: 0.9
     max_num_seqs: 32
     tensor_parallel_size: 1
     generation_config: vllm
+    max_model_len: 40960
+
+smollm3-3b-no-think:
+  model_name: HuggingFaceTB/SmolLM3-3B
+  gpu: A100
+  volume_prefix: amalia
+  thinking:
+    enabled: false
+    template_configurable: true
+  generation:
+    timeout: 120
+    max_retries: 0
+    temperature: 0.6 # HF recommendation.
+    top_p: 0.95 # HF recommendation.
+    max_tokens: 16384
+    seed: 42
+    max_connections: 32
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
+  model_args:
+    revision: a07cc9a04f16550a088caea529712d1d335b0ac1
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 32
+    tensor_parallel_size: 1
+    generation_config: vllm
+    max_model_len: 24576
 
 amalia-9b-sft:
   model_name: amalia-llm/AMALIA-9B-0626-SFT
@@ -19,12 +70,25 @@ amalia-9b-sft:
   thinking:
     enabled: false
     template_configurable: false
+  generation: # Non-thinking defaults; no lab sampling recommendation found.
+    timeout: 120
+    max_retries: 0
+    temperature: 0.0
+    top_p: 1.0
+    max_tokens: 16384
+    seed: 42
+    max_connections: 32
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
   model_args:
     revision: aa1de672d50020ed7ddd48d811300347c0bfffe0
     gpu_memory_utilization: 0.9
     max_num_seqs: 32
     tensor_parallel_size: 1
     generation_config: vllm
+    max_model_len: 24576
 
 amalia-9b-dpo:
   model_name: amalia-llm/AMALIA-9B-0626-DPO
@@ -33,12 +97,25 @@ amalia-9b-dpo:
   thinking:
     enabled: false
     template_configurable: false
+  generation: # Same non-thinking defaults as SFT.
+    timeout: 120
+    max_retries: 0
+    temperature: 0.0
+    top_p: 1.0
+    max_tokens: 16384
+    seed: 42
+    max_connections: 32
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
   model_args:
     revision: c4614b9b5c7b4fe303fa20902e692fc7dface640
     gpu_memory_utilization: 0.9
     max_num_seqs: 32
     tensor_parallel_size: 1
     generation_config: vllm
+    max_model_len: 24576
 
 lfm2.5-2.6b:
   model_name: LiquidAI/LFM2.5-2.6B
@@ -47,12 +124,27 @@ lfm2.5-2.6b:
   thinking:
     enabled: true
     template_configurable: false
+  generation:
+    timeout: 120
+    max_retries: 0
+    temperature: 0.1 # Liquid recommendation.
+    top_p: 1.0 # Default; Liquid specifies top-k instead.
+    top_k: 50 # Liquid recommendation.
+    repetition_penalty: 1.1 # Liquid recommendation.
+    max_tokens: 32768
+    seed: 42
+    max_connections: 32
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
   model_args:
     revision: 654f9463ce32b05d0429d76fe1f580b27d4c1ac0
     gpu_memory_utilization: 0.9
     max_num_seqs: 32
     tensor_parallel_size: 1
     generation_config: vllm
+    max_model_len: 40960
 
 nemotron-3-nano-4b:
   model_name: nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16
@@ -61,11 +153,24 @@ nemotron-3-nano-4b:
   thinking:
     enabled: true
     template_configurable: true
+  generation:
+    timeout: 120
+    max_retries: 0
+    temperature: 1.0 # NVIDIA reasoning recommendation.
+    top_p: 0.95 # NVIDIA reasoning recommendation.
+    max_tokens: 32768
+    seed: 42
+    max_connections: 32
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
   model_args:
     revision: dfaf35de3e30f1867dd8dbc38a7fc9fb52d3914f
     gpu_memory_utilization: 0.9
     max_num_seqs: 32
     tensor_parallel_size: 1
     generation_config: vllm
+    max_model_len: 40960
     trust_remote_code: true
     mamba_ssm_cache_dtype: float32

@@ -16,15 +16,6 @@ pt-exams:
     - question_group
     - question_number
     - is_completion
-  generation:
-    max_model_len: 8192
-    max_connections: 32
-    max_tokens: 4096
-    temperature: 0.0
-    stop_sequences:
-      - "</s>"
-      - "<|im_end|>"
-      - "<|endoftext|>"
   prompt: |-
     Pergunta:
     {question}
@@ -56,15 +47,6 @@ alba-mcq:
     - id
     - subject
     - scores
-  generation:
-    max_model_len: 8192
-    max_connections: 32
-    max_tokens: 4096
-    temperature: 0.0
-    stop_sequences:
-      - "</s>"
-      - "<|im_end|>"
-      - "<|endoftext|>"
   choice_format: "{letter}. {choice}"
   prompt: |-
     {question}
@@ -89,15 +71,6 @@ cultura-viva:
     - _task_type
     - _seed_id
     - _reviewed_at
-  generation:
-    max_model_len: 8192
-    max_connections: 32
-    max_tokens: 4096
-    temperature: 0.0
-    stop_sequences:
-      - "</s>"
-      - "<|im_end|>"
-      - "<|endoftext|>"
   prompt: |-
     Pergunta:
     {question}
@@ -153,15 +126,6 @@ legalbench-pt:
     - Field of Law
     - Type
     - ID
-  generation:
-    max_model_len: 8192
-    max_connections: 32
-    max_tokens: 4096
-    temperature: 0.0
-    stop_sequences:
-      - "</s>"
-      - "<|im_end|>"
-      - "<|endoftext|>"
   prompt: |-
     {question}
 
