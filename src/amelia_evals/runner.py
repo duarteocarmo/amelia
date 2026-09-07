@@ -352,11 +352,12 @@ def main(model: str, task: str, limit: int | None = None) -> None:
         task_config=task_config,
         limit=selected_limit,
     )
-    RUNNER_CONFIG.local_log_dir.mkdir(parents=True, exist_ok=True)
+    task_log_dir = RUNNER_CONFIG.local_log_dir / task
+    task_log_dir.mkdir(parents=True, exist_ok=True)
 
     for summary in summaries:
         log_file = summary["log_file"]
-        local_path = RUNNER_CONFIG.local_log_dir / log_file
+        local_path = task_log_dir / log_file
         with local_path.open(mode="wb") as destination:
             for chunk in log_volume.read_file(path=log_file):
                 destination.write(chunk)
