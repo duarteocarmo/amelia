@@ -73,10 +73,10 @@ def test_qwen_runtime_limits(model_name: str) -> None:
     config = generation_config_for(model_config=model)
     assert config.timeout == 300
     assert config.attempt_timeout == 300
-    assert model.generation.max_connections == 16
-    assert model.model_args.max_num_seqs == 16
+    assert model.generation.max_connections == 32
+    assert model.model_args.max_num_seqs == 32
     assert config.max_tokens == 32768
-    assert model.gpu == "A100"
+    assert model.gpu == "A100-80GB"
 
 
 def test_smollm_variants_only_differ_in_thinking_and_budgets() -> None:

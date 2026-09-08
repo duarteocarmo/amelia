@@ -177,7 +177,7 @@ nemotron-3-nano-4b:
 
 qwen3.5-4b:
   model_name: Qwen/Qwen3.5-4B
-  gpu: A100
+  gpu: A100-80GB
   volume_prefix: qwen35-4b
   thinking:
     enabled: true
@@ -190,7 +190,7 @@ qwen3.5-4b:
     top_k: 20
     max_tokens: 32768
     seed: 42
-    max_connections: 16
+    max_connections: 32
     stop_sequences:
       - "</s>"
       - "<|im_end|>"
@@ -198,7 +198,7 @@ qwen3.5-4b:
   model_args:
     revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
     gpu_memory_utilization: 0.9
-    max_num_seqs: 16
+    max_num_seqs: 32
     tensor_parallel_size: 1
     generation_config: vllm
     override_generation_config: '{"presence_penalty": 1.5}' # Inspect requires JSON for this CLI argument.
@@ -206,7 +206,7 @@ qwen3.5-4b:
 
 qwen3.5-2b:
   model_name: Qwen/Qwen3.5-2B
-  gpu: A100
+  gpu: A100-80GB
   volume_prefix: qwen35-2b
   thinking:
     enabled: true
@@ -219,7 +219,7 @@ qwen3.5-2b:
     top_k: 20
     max_tokens: 32768
     seed: 42
-    max_connections: 16
+    max_connections: 32
     stop_sequences:
       - "</s>"
       - "<|im_end|>"
@@ -227,7 +227,7 @@ qwen3.5-2b:
   model_args:
     revision: 15852e8c16360a2fea060d615a32b45270f8a8fc
     gpu_memory_utilization: 0.9
-    max_num_seqs: 16
+    max_num_seqs: 32
     tensor_parallel_size: 1
     generation_config: vllm
     override_generation_config: '{"presence_penalty": 1.5}' # Inspect requires JSON for this CLI argument.
