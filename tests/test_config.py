@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -54,6 +55,28 @@ def test_generation_config(
     if model_name == "lfm2.5-2.6b":
         expected_body.update(top_k=50, repetition_penalty=1.1)
     assert config.extra_body == (expected_body or None)
+
+
+@pytest.mark.parametrize(argnames="model_name", argvalues=("qwen3.5-2b", "qwen3.5-4b"))
+def test_qwen_generation_override_is_cli_json(model_name: str) -> None:
+    model_args = MODELS[model_name].model_args.model_dump(
+        mode="json", exclude_none=True
+    )
+    override = model_args["override_generation_config"]
+    assert isinstance(override, str)
+    assert json.loads(s=override) == {"presence_penalty": 1.5}
+
+
+@pytest.mark.parametrize(argnames="model_name", argvalues=("qwen3.5-2b", "qwen3.5-4b"))
+def test_qwen_runtime_limits(model_name: str) -> None:
+    model = MODELS[model_name]
+    config = generation_config_for(model_config=model)
+    assert config.timeout == 300
+    assert config.attempt_timeout == 300
+    assert model.generation.max_connections == 16
+    assert model.model_args.max_num_seqs == 16
+    assert config.max_tokens == 32768
+    assert model.gpu == "A100"
 
 
 def test_smollm_variants_only_differ_in_thinking_and_budgets() -> None:

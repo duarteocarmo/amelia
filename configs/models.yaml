@@ -5,7 +5,7 @@
 # Output: 32K with thinking, 16K otherwise.
 # Context: output budget + 8K for input. Verify actual prompt lengths before full runs.
 # Seed: 42 for all models. Token budgets are evaluation policy, not model limits.
-# Requests: 120-second generation deadline, no model-call retries.
+# Requests: 120-second generation deadline (300 for Qwen3.5), no model-call retries.
 # Sample errors: one retry, then score missing answers as incorrect and continue.
 # Keep failed samples in the denominator. Retry policy lives in runner.py.
 
@@ -174,3 +174,61 @@ nemotron-3-nano-4b:
     max_model_len: 40960
     trust_remote_code: true
     mamba_ssm_cache_dtype: float32
+
+qwen3.5-4b:
+  model_name: Qwen/Qwen3.5-4B
+  gpu: A100
+  volume_prefix: qwen35-4b
+  thinking:
+    enabled: true
+    template_configurable: true
+  generation:
+    timeout: 300
+    max_retries: 0
+    temperature: 1.0 # Qwen general thinking recommendation.
+    top_p: 0.95
+    top_k: 20
+    max_tokens: 32768
+    seed: 42
+    max_connections: 16
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
+  model_args:
+    revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 16
+    tensor_parallel_size: 1
+    generation_config: vllm
+    override_generation_config: '{"presence_penalty": 1.5}' # Inspect requires JSON for this CLI argument.
+    max_model_len: 40960
+
+qwen3.5-2b:
+  model_name: Qwen/Qwen3.5-2B
+  gpu: A100
+  volume_prefix: qwen35-2b
+  thinking:
+    enabled: true
+    template_configurable: true
+  generation:
+    timeout: 300
+    max_retries: 0
+    temperature: 1.0 # Qwen text thinking recommendation.
+    top_p: 0.95
+    top_k: 20
+    max_tokens: 32768
+    seed: 42
+    max_connections: 16
+    stop_sequences:
+      - "</s>"
+      - "<|im_end|>"
+      - "<|endoftext|>"
+  model_args:
+    revision: 15852e8c16360a2fea060d615a32b45270f8a8fc
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 16
+    tensor_parallel_size: 1
+    generation_config: vllm
+    override_generation_config: '{"presence_penalty": 1.5}' # Inspect requires JSON for this CLI argument.
+    max_model_len: 40960
