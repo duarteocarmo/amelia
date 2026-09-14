@@ -3,18 +3,19 @@ from pathlib import Path
 
 import anyio
 import pytest
-from inspect_ai import Task, eval
+from inspect_ai import Task
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log, read_eval_log_sample_summaries
-from inspect_ai.model import ModelOutput
+from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import CORRECT, INCORRECT
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from tenacity import retry, stop_after_attempt
 
-from amelia_evals.runner import (
-    RUNNER_CONFIG,
+from amelia_evals.config import PROJECT_ROOT, load_model_registry
+from amelia_evals.evaluation import (
     extract_answer,
     multiple_choice_scorer,
+    run_evaluation,
 )
 
 
@@ -56,8 +57,9 @@ def test_timeout_retries_once_then_scores(tmp_path: Path, *, recovers: bool) -> 
 
         return solve
 
-    logs = eval(
-        tasks=Task(
+    model_config = load_model_registry(path=PROJECT_ROOT / "configs/models.yaml")["qwen3.5-2b"]
+    summaries = run_evaluation(
+        task=Task(
             dataset=[
                 Sample(id=1, input="Timeout", target="B"),
                 Sample(id=2, input="Answer", target="B"),
@@ -65,15 +67,13 @@ def test_timeout_retries_once_then_scores(tmp_path: Path, *, recovers: bool) -> 
             solver=timed_answer(),
             scorer=multiple_choice_scorer(letters="ABCD"),
         ),
-        model="none/none",
-        fail_on_error=RUNNER_CONFIG.fail_on_error,
-        score_on_error=RUNNER_CONFIG.score_on_error,
-        retry_on_error=RUNNER_CONFIG.retry_on_error,
-        max_samples=1,
+        model=get_model(model="none/none"),
+        model_config=model_config,
+        metadata={"model_variant": "test-timeouts"},
         log_dir=str(tmp_path),
-        display="none",
     )
-    log = read_eval_log(log_file=logs[0].location)
+    assert summaries[0]["sample_errors"] == (0 if recovers else 1)
+    log = read_eval_log(log_file=str(tmp_path / summaries[0]["log_file"]))
     assert log.status == "success"
     assert log.samples is not None
     assert len(log.samples) == 2

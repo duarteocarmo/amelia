@@ -11,6 +11,8 @@ from pydantic import (
     model_validator,
 )
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

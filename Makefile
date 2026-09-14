@@ -11,10 +11,15 @@ install: # Install dependencies into the virtual environment
 MODEL ?= nemotron-3-nano-4b
 TASK ?= pt-exams
 LIMIT ?=
+BASE_URL ?= http://localhost:8000/v1
 
 .PHONY: eval
 eval: # Run a configured Modal evaluation (MODEL=... TASK=... LIMIT=...)
-	uv run modal run -m amelia_evals.runner --model '$(MODEL)' --task '$(TASK)' $(if $(LIMIT),--limit '$(LIMIT)')
+	uv run modal run -m amelia_evals.modal_runner --model '$(MODEL)' --task '$(TASK)' $(if $(LIMIT),--limit '$(LIMIT)')
+
+.PHONY: eval-rig
+eval-rig: # Evaluate an existing vLLM endpoint (MODEL=... TASK=... LIMIT=... BASE_URL=...)
+	uv run python -m amelia_evals.rig_runner --model '$(MODEL)' --task '$(TASK)' --base-url '$(BASE_URL)' $(if $(LIMIT),--limit '$(LIMIT)')
 
 .PHONY: view
 view: # Open the Inspect log viewer (recursive, so per-task subfolders are shown)
